@@ -38,6 +38,32 @@ const setCookie = (res, accessToken, refreshToken) => {
   });
 };
 
+export const refreshToken = asyncHandler(async (req, res, next) => {
+  const refreshToken = req.cookies.refreshToken;
+  if (!refreshToken) {
+    throw new AppError("No Refresh Token Provided", 401);
+  }
+
+  const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+  const storedToken = await redis.get(`refreshToken:${decoded.userId}`);
+
+  if (!storedToken || storedToken !== refreshToken) {
+    throw new AppError("Invalid refresh token", 401);
+  }
+
+  const { accessToken, refreshToken: newRefreshToken } = generateToken(
+    decoded.userId
+  );
+  await storeRefreshToken(decoded.userId, newRefreshToken);
+
+  setCookie(res, accessToken, newRefreshToken);
+
+  res.status(200).json({
+    success: true,
+    message: "Token refreshed successfully",
+  });
+});
+
 export const signup = asyncHandler(async (req, res, next) => {
   const { name, email, password } = req.body;
 
