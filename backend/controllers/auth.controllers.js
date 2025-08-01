@@ -3,6 +3,27 @@ import User from "../models/user.model.js";
 import jwt from "jsonwebtoken";
 import { asyncHandler, AppError } from "../lib/handlers.js";
 
+export const refreshToken = asyncHandler(async (req, res, next) => {
+  const refreshToken = req.cookie.refreshToken;
+  if (!refreshToken) {
+    throw new AppError("No Refresh Token Provided", 401);
+  }
+  const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+  const sotredToken = await redis.get(`refreshToken:${decoded.userId}`);
+
+  if (sotredToken !== refreshToken) {
+    throw new AppError("Incorrect RefreshToken", 401);
+  }
+  const accessToken = jwt.sign(
+    { userId: decoded.userId },
+    process.env.ACCESS_TOKEN_SECRET,
+    { expiresIn: "15m" }
+  );
+  res.json({
+    suc,
+  });
+});
+
 const generateToken = (userId) => {
   const accessToken = jwt.sign({ userId }, process.env.ACCESS_TOKEN_SECRET, {
     expiresIn: "15m",
@@ -37,32 +58,6 @@ const setCookie = (res, accessToken, refreshToken) => {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 };
-
-export const refreshToken = asyncHandler(async (req, res, next) => {
-  const refreshToken = req.cookies.refreshToken;
-  if (!refreshToken) {
-    throw new AppError("No Refresh Token Provided", 401);
-  }
-
-  const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-  const storedToken = await redis.get(`refreshToken:${decoded.userId}`);
-
-  if (!storedToken || storedToken !== refreshToken) {
-    throw new AppError("Invalid refresh token", 401);
-  }
-
-  const { accessToken, refreshToken: newRefreshToken } = generateToken(
-    decoded.userId
-  );
-  await storeRefreshToken(decoded.userId, newRefreshToken);
-
-  setCookie(res, accessToken, newRefreshToken);
-
-  res.status(200).json({
-    success: true,
-    message: "Token refreshed successfully",
-  });
-});
 
 export const signup = asyncHandler(async (req, res, next) => {
   const { name, email, password } = req.body;
